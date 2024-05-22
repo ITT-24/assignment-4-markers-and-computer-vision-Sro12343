@@ -11,7 +11,7 @@ from pyglet.window import mouse
 import numpy as np
 from PIL import Image
 import os
-
+from Player import Player
 
 video_id = 0
 
@@ -73,13 +73,64 @@ window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT)
 
 image = None
 
+
+player = Player()
 @window.event
 def on_draw():
     window.clear()
     show_img = capture_frame()
     if show_img is not None:
+        thresh,cx,cy = calc_cursor_position(show_img)
+        show_img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
         show_img = cv2glet(show_img, 'BGR')
         show_img.blit(0, 0, 0)
+        player.draw()
+        player.update(cx,WINDOW_HEIGHT-cy)
+    pass
+
+
+def calc_cursor_position(frame):
+    img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # Calculate mean brightness of the grayscale image
+    mean_brightness = img_gray.mean()
+
+    # Adjust the cutoff point based on mean brightness
+    cutoff = int(mean_brightness * 0.7) 
+    block_size = 25  #11
+    C_value = 10   #2
+
+    ret,thresh = cv2.threshold(img_gray, cutoff, 255, cv2.THRESH_BINARY)#cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, block_size, C_value)
+    
+    invert_thresh = cv2.bitwise_not(thresh)
+    #Getting the position based on the contour was made with Copilot 
+    contours, hierarchy = cv2.findContours(invert_thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    largest_area = 0
+    largest_contour = None
+
+    # Iterate through contours
+    for contour in contours:
+        # Calculate area of the contour
+        area = cv2.contourArea(contour)
+
+        # Check if the contour is larger than the current largest contour
+        if area > largest_area:
+            largest_area = area
+            largest_contour = contour
+
+    
+    #if not contours:
+    #    return thresh,0,0
+    
+    #largest_contour = max(contours, key=lambda x: cv2.contourArea(x))
+    M = cv2.moments(largest_contour)
+    if M["m00"] != 0:
+        cx = int(M["m10"] / M["m00"])
+        x, y, w, h = cv2.boundingRect(contour)
+        cy = int(M["m01"] / M["m00"])
+    else:
+        cx, cy = 0, 0
+    return thresh, cx,cy
     pass
 
 def get_interaction_image(frame):
@@ -108,7 +159,7 @@ def capture_frame():
     ret, frame = cap.read()
 
     if size_x == None:
-        print(type(frame))
+        #print(type(frame))
         size_y, size_x, channels = frame.shape
         window.set_size(size_x,size_y)
 
@@ -118,107 +169,32 @@ def capture_frame():
     # Detect ArUco markers in the frame
     corners, ids, rejectedImgPoints = detector.detectMarkers(gray)
 
-    
-    print("-->")
-    print(corners)
-    print(len(corners))
-   
-    print(ids)
-    print("<--")    
-    # Check if marker is detected
     if ids is not None:
         
         if len(ids) >=4:
-            #print(corners[0][0][0])
-            #print(corners[1][0][1])
-            #print(corners[2][0][2])
-            #print(corners[3][0][3])
-            print(ids[1][0])
-            #give corners to resize frame
             return resize_frame(corners, frame,ids)
 
-            pass
-        
-        #calculate corners
-        
-        #return frame
-        
-        #return frame and markers
-
-        
-        #return red frame
-            
-        
-        # Draw lines along the sides of the marker
-        #aruco.drawDetectedMarkers(frame, corners)
     
     return frame
     
     
 def resize_frame(corners,frame,ids):
-    
-    #print(corners)
-
     points = []
-    print(corners[0][0])
-    
-    #order it by id or by by closenes to the screen. Wohl closest to corner
-    
-    
-    #for i in range(4):
-    #    
-    #    median_x = np.median(corners[0][0][:, 0])
-    #    median_y = np.median(corners[0][0][:, 1])
-    #    median_x_y = [median_x,median_y]
-    #    points.append(median_x_y)
-    #print(median_x)
-    #print(median_y)
-    print("test")
-    print(ids)
-    print(corners)
-    print(ids[1][0])
-    
     points = get_marker_centers(corners)
     points = order_points(points)
     points = np.array(points, dtype=np.float32)
-    #for i in range(4):
-    #    for j in ids:#range(len(ids)):
-    #        if i == int(j[0]):
-    #            print(str(i)+" + "+ str(j[0]))
-    #            print(corners[i][0])
-     #           points.append(corners[i][0][i])
-     #           break
-        
-    #points.append(corners[0][0][0])
-    #points.append(corners[1][0][1])
-    #points.append(corners[2][0][2])
-    #points.append(corners[3][0][3])
-
-    
-    print(points)
-    
-    
-   # destionation = np.float32(np.array([[0, 0], [size_x, 0], [size_x, size_y], [0, size_y]]))
-    #destionation = np.float32(np.array([[0, size_y], [0,0], [size_x, size_y],[size_x, 0] ]))
-    #destionation = np.float32(np.array([[0, size_y], [0,0], [size_x, 0],[size_x, size_y] ]))
     destionation = np.float32(np.array([[0,0], [size_x, 0], [size_x, size_y], [0, size_y] ]))
-    
-    
     mat = cv2.getPerspectiveTransform(points, destionation)
     edit_img = cv2.warpPerspective(frame,mat,(size_x, size_y))
     return edit_img
     
-    
-    
-
-
 def get_marker_centers(corners):
     centers = []
-    print("center")
-    print(corners)
+    #print("center")
+    #print(corners)
     for c in corners:
         if len(c[0]) != 4:
-            print(c[0])
+            #print(c[0])
             raise ValueError("There should be exactly four corner points for each marker.")
         
         # Convert the corners to a NumPy array for easier manipulation
@@ -231,8 +207,6 @@ def get_marker_centers(corners):
         centers.append((center_x, center_y))
 
     return np.array(centers, dtype=np.float32)
-    
-    pass
 
 #Created with chatgpt
 def order_points(pts):
@@ -255,15 +229,12 @@ def order_points(pts):
 
     return rect
 
-# Release the video capture object and close all windows
-
 pyglet.app.run()
 
 cap.release()
 cv2.destroyAllWindows()
 
 
-#resize
 #get collision map
 #ballons that move one direction
     #check every frame if intersecting between black and circles.

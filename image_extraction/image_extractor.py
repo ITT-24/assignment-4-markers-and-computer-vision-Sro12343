@@ -26,6 +26,8 @@ else:
 
 #Load image
 source_img = cv2.imread(input_path)
+
+print(f"Trying to load image from: {input_path}")
 edit_img = source_img.copy()  
 height, width = source_img.shape[:2]
 
