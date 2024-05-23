@@ -8,7 +8,7 @@ from PIL import Image
 from image_calculation import image_calculation
 
 class Game():
-    def __init__(self,WINDOW_WIDTH,WINDOW_HEIGHT,window,cap,detector,shadow_mode) -> None:
+    def __init__(self,WINDOW_WIDTH,WINDOW_HEIGHT,window,cap,detector,shadow_mode,Left) -> None:
         self.player = Player(40)
         self.ball_countdown=30
         self.ball_list = []
@@ -24,6 +24,7 @@ class Game():
         self.restart_text = pyglet.text.Label(text="Space", x=self.WINDOW_WIDTH /2, y=100,font_size=20,color=(255,0,0,255), anchor_x='center',anchor_y='center')
         self.game_over = False
         self.immg_calc=image_calculation(cap,window,detector)
+        self.Left = Left
         pass
     
     
@@ -54,6 +55,9 @@ class Game():
         
         
     def stop_game(self):
+        self.game_over_text.x = self.immg_calc.size_x/2
+        self.game_over_text.y = self.immg_calc.size_y/2
+        self.restart_text.x = self.immg_calc.size_x/2
         self.game_over = True 
         self.ball_list.clear()
         
@@ -64,7 +68,6 @@ class Game():
         if captured_img is not None:           
             show_img = captured_img
             thresh,cx,cy = self.immg_calc.calc_cursor_position(show_img)
-
             if self.game_over:
                 #Game over screen in Black and white
                 show_img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
@@ -82,7 +85,8 @@ class Game():
                 for b in self.ball_list:
                     b.draw()
                 self.player.draw()
-                self.player.update(cx,self.WINDOW_HEIGHT-cy)
+                self.player.update(cx,self.immg_calc.size_y-cy)
+                
     
     
     def update(self):
@@ -113,18 +117,18 @@ class Game():
         #if countdown reaches 0 spawn a ball and set new random range countdown
         self.ball_countdown -= 1
         if self.ball_countdown <= 0:
-            l_or_r = np.random.choice([True, False])
             radius = 10
             
             #spawn ball on the right or left.
-            if l_or_r:
+            if self.Left:
+                speed = -10
+                spawn_x = self.immg_calc.size_x+10
+                despawn_x = -100
+            else:
                 speed = 10
                 spawn_x = -10
-                despawn_x= self.WINDOW_WIDTH+100
-            else:
-                speed = -10
-                spawn_x = self.WINDOW_WIDTH+10
-                despawn_x = -100
-            starting_y =  np.random.randint(0+100, self.WINDOW_HEIGHT-100)
+                despawn_x= self.immg_calc.size_x+100
+
+            starting_y =  np.random.randint(0+100, self.immg_calc.size_y-100)
             self.ball_list.append(Ball(spawn_x,starting_y,speed,radius,despawn_x))
             self.ball_countdown =  np.random.randint(10, 60)

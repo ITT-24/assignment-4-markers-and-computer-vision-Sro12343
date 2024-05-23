@@ -11,6 +11,32 @@ class image_calculation():
         self.size_y = None
         
         
+    
+    def capture_frame(self):
+        # Capture a frame from the webcam
+        ret, frame = self.cap.read()
+        if self.size_x == None:
+            self.size_y, self.size_x, channels = frame.shape
+            self.window.set_size(self.size_x,self.size_y)
+            self.destionation = np.float32(np.array([[0,0], [self.size_x, 0], [self.size_x, self.size_y], [0, self.size_y] ]))
+            self.points = self.destionation
+            
+        # Convert the frame to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        
+        # Detect ArUco markers in the frame
+        corners, ids, rejectedImgPoints = self.detector.detectMarkers(gray)
+        
+        #If marker detection not succeding continue using old marker position for perspective transform
+        #It used to only use old marker positions for 3 frames, but after talking to Maximilian Kilger i changed it to this.
+        if ids is not None:        
+            if len(ids) >=4:
+                self.set_points(corners)
+        mat = cv2.getPerspectiveTransform(self.points, self.destionation)
+        edit_img = cv2.warpPerspective(frame,mat,(self.size_x, self.size_y))
+        edit_img = cv2.flip(edit_img, 1)
+        return edit_img
+        
     def calc_cursor_position(self,frame):
         img_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
@@ -47,36 +73,12 @@ class image_calculation():
         M = cv2.moments(largest_contour)
         if M["m00"] != 0:
             cx = int(M["m10"] / M["m00"])
-            x, y, w, h = cv2.boundingRect(contour)
             cy = int(M["m01"] / M["m00"])
         else:
             cx, cy = 0, 0
         return thresh, cx,cy
 
 
-    def capture_frame(self):
-        # Capture a frame from the webcam
-        ret, frame = self.cap.read()
-        if self.size_x == None:
-            self.size_y, self.size_x, channels = frame.shape
-            self.window.set_size(self.size_x,self.size_y)
-            self.destionation = np.float32(np.array([[0,0], [self.size_x, 0], [self.size_x, self.size_y], [0, self.size_y] ]))
-            self.points = self.destionation
-            
-        # Convert the frame to grayscale
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # Detect ArUco markers in the frame
-        corners, ids, rejectedImgPoints = self.detector.detectMarkers(gray)
-        
-        #If marker detection not succeding continue using old marker position for perspective transform
-        #It used to only use old marker positions for 3 frames, but after talking to Maximilian Kilger i changed it to this.
-        if ids is not None:        
-            if len(ids) >=4:
-                self.set_points(corners)
-        mat = cv2.getPerspectiveTransform(self.points, self.destionation)
-        edit_img = cv2.warpPerspective(frame,mat,(self.size_x, self.size_y))
-        return edit_img
 
 
     def set_points(self,corners):
