@@ -22,10 +22,9 @@ class Ball():
             pass
     
     def update(self):
+        #move ball
         self.x += self.speed
         if np.abs(self.x - self.despawn_x)<20:
             self.despawn = True
-        
         self.shape.x = self.x
-        self.shape.y = self.y
-        pass    
+        self.shape.y = self.y 

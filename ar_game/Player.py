@@ -22,5 +22,4 @@ class Player():
         self.y = y
         self.shape.x = x
         self.shape.y = y
-        
         pass    
