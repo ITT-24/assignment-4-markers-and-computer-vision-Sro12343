@@ -3,9 +3,11 @@ from pyglet.gl import glGetError, GL_NO_ERROR
 import pyglet
 
 class Player():
-    def __init__(self):
-        self.shape = shapes.Circle(100, 100, 40, color=(255, 0, 0, 255))
-    
+    def __init__(self,radius):
+        self.radius = radius
+        self.shape = shapes.Circle(100, 100, self.radius, color=(255, 0, 0, 255))
+        self.x = 100
+        self.y = 100
     
     def draw(self):      
         
@@ -16,6 +18,9 @@ class Player():
         pass
     
     def update(self,x,y):
+        self.x = x
+        self.y = y
         self.shape.x = x
         self.shape.y = y
+        
         pass    

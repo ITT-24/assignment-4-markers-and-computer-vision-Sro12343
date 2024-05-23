@@ -12,6 +12,7 @@ import numpy as np
 from PIL import Image
 import os
 from Player import Player
+from Ball import Ball
 
 video_id = 0
 
@@ -74,19 +75,75 @@ window = pyglet.window.Window(WINDOW_WIDTH, WINDOW_HEIGHT)
 image = None
 
 
-player = Player()
+player = Player(40)
 @window.event
 def on_draw():
     window.clear()
-    show_img = capture_frame()
-    if show_img is not None:
+    captured_img = capture_frame()
+    if captured_img is not None:
+        show_img = captured_img
         thresh,cx,cy = calc_cursor_position(show_img)
-        show_img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
+        #show_img = cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)
         show_img = cv2glet(show_img, 'BGR')
         show_img.blit(0, 0, 0)
         player.draw()
         player.update(cx,WINDOW_HEIGHT-cy)
+        
+        for b in ball_list:
+            b.draw()
     pass
+def update(dt):
+    #spawn enemies
+    ball_spawner()
+    #move enemies
+    for b in ball_list:
+        #update ball position
+        b.update()
+        if b.despawn:
+            ball_list.remove(b)
+            continue      
+        #check enemy player colision
+        if check_collision(player.x,player.y,player.radius,b.x,b.y,b.radius):
+            print("Game Over")
+            pass
+ 
+    pass
+
+def check_collision(px,py,pr,bx,by,br):
+    distance = np.sqrt((px - bx)**2 + (py - by)**2)
+    if distance < pr+br:
+        return True
+    return False
+    
+
+
+ball_countdown=30
+ball_list = []
+def ball_spawner():
+    global ball_countdown
+    ball_countdown -= 1
+    if ball_countdown <= 0:
+        l_or_r = np.random.choice([True, False])
+        
+        radius = 10
+        if l_or_r:
+            speed = 10
+            spawn_x = -10
+            despawn_x= WINDOW_WIDTH+100
+        else:
+            speed = -10
+            spawn_x = WINDOW_WIDTH+10
+            despawn_x = -100
+            
+        starting_y =  np.random.randint(0+100, WINDOW_HEIGHT-100)
+        ball_list.append(Ball(spawn_x,starting_y,speed,radius,despawn_x))
+        ball_countdown =  np.random.randint(10, 60)
+        
+    
+    #touch to destroy some ballones but not others
+    pass
+
+
 
 
 def calc_cursor_position(frame):
@@ -139,19 +196,13 @@ def get_interaction_image(frame):
     ret, thresh = cv2.threshold(img_gray, cutoff, 255, cv2.THRESH_BINARY)
     return thresh
 
-def check_collision():
-    #for each ballon check overlap with black area of threthhold. 
-    #if overlap then destroy.
-    pass
-
-def game_manager():
-    #touch to destroy some ballones but not others
-    pass
 
 def capture_frame():
     global size_x
     global size_y
-    
+    global use_old_frame
+    global points
+    destionation = np.float32(np.array([[0,0], [size_x, 0], [size_x, size_y], [0, size_y] ]))
     #depuging work
     #frame = source_img.copy()
     
@@ -169,29 +220,50 @@ def capture_frame():
     # Detect ArUco markers in the frame
     corners, ids, rejectedImgPoints = detector.detectMarkers(gray)
 
-    if ids is not None:
-        
+    #add a buffer where if not recognised use old corners for transformation for about 3 frames. This should limit the flicker.
+    if ids is not None:        
         if len(ids) >=4:
-            return resize_frame(corners, frame,ids)
-
-    
+            print("1")
+            set_points(corners)
+            
+            #points = get_marker_centers(corners)
+            #points = order_points(points)
+            #points = np.array(points, dtype=np.float32)
+            
+            use_old_frame = 10
+            mat = cv2.getPerspectiveTransform(points, destionation)
+            edit_img = cv2.warpPerspective(frame,mat,(size_x, size_y))
+            return edit_img 
+        
+    elif use_old_frame > 0:
+        print("2")
+        use_old_frame -=1
+        mat = cv2.getPerspectiveTransform(points, destionation)
+        edit_img = cv2.warpPerspective(frame,mat,(size_x, size_y))
+        return edit_img
+    else: 
+        print("3")
+        points = []
     return frame
-    
-    
-def resize_frame(corners,frame,ids):
-    points = []
+
+
+use_old_frame = 0
+points = []
+destionation = np.float32(np.array([[0,0], [size_x, 0], [size_x, size_y], [0, size_y] ]))
+
+def set_points(corners):
+    global points
     points = get_marker_centers(corners)
     points = order_points(points)
     points = np.array(points, dtype=np.float32)
-    destionation = np.float32(np.array([[0,0], [size_x, 0], [size_x, size_y], [0, size_y] ]))
-    mat = cv2.getPerspectiveTransform(points, destionation)
-    edit_img = cv2.warpPerspective(frame,mat,(size_x, size_y))
-    return edit_img
+    return points
+    
+    
+    
     
 def get_marker_centers(corners):
     centers = []
-    #print("center")
-    #print(corners)
+
     for c in corners:
         if len(c[0]) != 4:
             #print(c[0])
@@ -209,7 +281,7 @@ def get_marker_centers(corners):
     return np.array(centers, dtype=np.float32)
 
 #Created with chatgpt
-def order_points(pts):
+def order_points2(pts):
     # Create an array to hold the ordered points
     rect = np.zeros((4, 2), dtype="float32")
 
@@ -229,6 +301,26 @@ def order_points(pts):
 
     return rect
 
+
+#Created with chatgpt
+def order_points(pts):
+    rect = np.zeros((4, 2), dtype="float32")
+
+    # Calculate the centroid
+    centroid = np.mean(pts, axis=0)
+    # Assign points based on their relative position to the centroid
+    for point in pts:
+        if point[0] < centroid[0] and point[1] < centroid[1]:
+            rect[0] = point  # Top-left
+        elif point[0] > centroid[0] and point[1] < centroid[1]:
+            rect[1] = point  # Top-right
+        elif point[0] > centroid[0] and point[1] > centroid[1]:
+            rect[2] = point  # Bottom-right
+        elif point[0] < centroid[0] and point[1] > centroid[1]:
+            rect[3] = point  # Bottom-left
+    return rect
+
+pyglet.clock.schedule_interval(update, 1/60.0)
 pyglet.app.run()
 
 cap.release()
