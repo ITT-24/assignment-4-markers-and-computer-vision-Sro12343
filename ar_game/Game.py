@@ -22,9 +22,12 @@ class Game():
         self.shadow_mode = shadow_mode
         self.game_over_text = pyglet.text.Label(text="GAME OVER", x=self.WINDOW_WIDTH /2, y=self.WINDOW_HEIGHT /2,font_size=70,color=(255,0,0,255), anchor_x='center',anchor_y='center')
         self.restart_text = pyglet.text.Label(text="Space", x=self.WINDOW_WIDTH /2, y=100,font_size=20,color=(255,0,0,255), anchor_x='center',anchor_y='center')
+        self.points_text = pyglet.text.Label(text="-", x=self.WINDOW_WIDTH /2, y=100,font_size=20,color=(255,0,0,255), anchor_x='center',anchor_y='center')
         self.game_over = False
         self.immg_calc=image_calculation(cap,window,detector)
         self.Left = Left
+        self.points = 0
+        self.timerMax = 60
         pass
     
     
@@ -58,6 +61,9 @@ class Game():
         self.game_over_text.x = self.immg_calc.size_x/2
         self.game_over_text.y = self.immg_calc.size_y/2
         self.restart_text.x = self.immg_calc.size_x/2
+        self.points_text.text = "Your points "+ str(self.points)
+        self.points_text.x = self.immg_calc.size_x/2
+        self.points_text.y = self.immg_calc.size_y/2-60
         self.game_over = True 
         self.ball_list.clear()
         
@@ -75,6 +81,7 @@ class Game():
                 show_img.blit(0, 0, 0)
                 self.game_over_text.draw()
                 self.restart_text.draw()
+                self.points_text.draw()
             else:
                 #draw game
                 if self.shadow_mode:
@@ -99,11 +106,16 @@ class Game():
                 #despawn old balls
                 if b.despawn:
                     self.ball_list.remove(b)
+                    self.points +=1
+                    if self.points % 6 == 0 and self.timerMax > 15:
+                        self.timerMax -= 1
+        
                     continue      
                 #check enemy player colision
                 if self.check_collision(self.player.x,self.player.y,self.player.radius,b.x,b.y,b.radius):
                     self.stop_game()
                     break
+            
         
         
     def check_collision(self,px,py,pr,bx,by,br):
@@ -116,6 +128,8 @@ class Game():
     def ball_spawner(self):
         #if countdown reaches 0 spawn a ball and set new random range countdown
         self.ball_countdown -= 1
+
+            
         if self.ball_countdown <= 0:
             radius = 10
             
@@ -129,6 +143,6 @@ class Game():
                 spawn_x = -10
                 despawn_x= self.immg_calc.size_x+100
 
-            starting_y =  np.random.randint(0+100, self.immg_calc.size_y-100)
+            starting_y =  np.random.randint(0, self.immg_calc.size_y)
             self.ball_list.append(Ball(spawn_x,starting_y,speed,radius,despawn_x))
-            self.ball_countdown =  np.random.randint(10, 60)
+            self.ball_countdown =  np.random.randint(10, self.timerMax)
