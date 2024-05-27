@@ -12,7 +12,7 @@ video_id = 0
 shadow_mode= False
 WINDOW_WIDTH = 600
 WINDOW_HEIGHT = 600
-left = True
+Left = True
 if len(sys.argv) > 1:
     video_id = int(sys.argv[1])
 if len(sys.argv) > 2:
